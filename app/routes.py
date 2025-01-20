@@ -3,6 +3,7 @@ from flask_cors import CORS
 from openai import OpenAI
 import os
 from app.services.google_sheets_service import google_sheets_service
+from app.services.authenticate import authentication
 
 # Define the Blueprint
 main = Blueprint('main', __name__)
@@ -42,3 +43,15 @@ def google_sheets_service_call():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+@main.route('/authenticate/private-token/', methods=['GET', 'POST'])
+def authenticate():
+    token = request.headers.get("Authorization")
+    if not token:
+        response_text = """
+            Hello! I'm currently only able to speak with Stephen. \n I'm still in build mode. \n However, if you'd like to learn more about Stephen, I'd suggest checking him out on LinkedIn (https://www.linkedin.com/in/stephen-keenan/) or book a time at to chat (https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ02Ay5xQ5KRJgIT1TKOZy1wsRHvxLBejqYlRLGzlPUg5-Sbk7dcdZSVLZG77Jh8y6U3ySV4NYOE).
+        """
+        return jsonify({"response": response_text}), 200  # Return 401 Unauthorized with HTML content
+    try:
+        return authentication()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400

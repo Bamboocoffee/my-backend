@@ -1,2 +1,10 @@
 env/
 .venv/
+.env
+
+
+# Other
+google_service_account.json
+
+# Cache
+*.pyc

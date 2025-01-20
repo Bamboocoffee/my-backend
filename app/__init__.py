@@ -14,6 +14,10 @@ def create_app():
     # Use the environment variables
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-secret-key')
 
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+    app.config['DEBUG'] = True
+    app.config['JSON_AS_ASCII'] = False  # Ensure proper decoding of JSON
+
     # Register Blueprints
     app.register_blueprint(main)
 
