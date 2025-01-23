@@ -1,3 +1,4 @@
+from flask import Flask, request, jsonify
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from datetime import datetime
@@ -61,8 +62,8 @@ def google_sheets_service(weight):
                     valueInputOption='RAW',
                     body=body
                 ).execute()
-
-                return {"status": "success", "updatedRange": update_result.get('updatedRange')}
+                return update_result.get('updatedRange')
+                # return {"status": "success", "message": update_result.get('updatedRange')}
 
         return {"status": "error", "message": "No row with today's date found."}
     except Exception as e:
