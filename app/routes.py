@@ -3,7 +3,8 @@ from flask_cors import CORS
 from openai import OpenAI
 import os
 from app.services.google_sheets_service import google_sheets_service
-from app.services.authenticate import authentication
+from app.services.authenticate_service import authentication
+from app.services.test_service import test_agent_function
 
 # Define the Blueprint
 main = Blueprint('main', __name__)
@@ -40,6 +41,15 @@ def google_sheets_service_call():
     try:
         data = request.get_json()
         result = google_sheets_service(weight=data["message"])
+        return jsonify({"status": "success", "response": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    
+
+@main.route('/test/', methods=['GET', 'POST'])
+def test_call():
+    try:
+        result = test_agent_function()
         return jsonify({"status": "success", "response": result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
