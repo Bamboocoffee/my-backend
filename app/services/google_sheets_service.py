@@ -68,3 +68,12 @@ def google_sheets_service(weight):
         return {"status": "error", "message": "No row with today's date found."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+#   def __post_init__(self):
+#         """Handles initialization of dynamic attributes since `BaseTool` does not use __init__()."""
+#         # Authenticate with Google Sheets API
+#         print("Getting here")
+#         self.credentials = service_account.Credentials.from_service_account_file(
+#             self.service_account_file, scopes=self.default_scopes
+#         )
+#         print(self.credentials)
+#         self.service = build('sheets', 'v4', credentials=self.credentials)
