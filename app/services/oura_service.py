@@ -2,85 +2,97 @@ from flask import Flask, jsonify, request
 import requests
 import os
 
-app = Flask(__name__)
-
-# Oura API Base URL
-OURA_API_BASE_URL = "https://api.ouraring.com"
-OUR_API_KEY =os.getenv("OURA_API_TOKEN")
-
-def daily_readiness():
-
-    url = f"{OURA_API_BASE_URL}/v2/usercollection/daily_sleep"
-    params={ 
-        'start_date': '2025-01-30', 
-        'end_date': '2025-01-31',
-        'next_token': None
-    }
-    headers = {
-        "Authorization": f"Bearer {OUR_API_KEY}"
-    }
-    response = requests.get(url, headers=headers, params=params)
-    print(response.json()["data"][0]["score"])
+class OuraServiceAPI:
+    """Handles requests to the Oura API."""
     
-    if response.status_code == 200:
-        print("Getting here")
-        return response.json()  # Successfully fetched data
-    elif response.status_code == 401:
-        return {"error": "Unauthorized. Check your access token."}, 401
-    elif response.status_code == 403:
-        return {"error": "Forbidden. Insufficient permissions."}, 403
-    elif response.status_code == 404:
-        return {"error": "Not found. Invalid API endpoint."}, 404
-    else:
-        return {"error": "Failed to fetch data", "status_code": response.status_code}, response
+    BASE_URL = "https://api.ouraring.com"
+    API_KEY = os.getenv("OURA_API_TOKEN")
 
-def daily_sleep():
+    def __init__(self):
+        if not self.API_KEY:
+            raise ValueError("Missing OURA_API_TOKEN. Set it as an environment variable.")
 
-    url = f"{OURA_API_BASE_URL}/v2/usercollection/sleep"
-    params={ 
-        'start_date': '2025-01-29', 
-        'end_date': '2025-01-30',
-        'next_token': None
-    }
-    headers = {
-        "Authorization": f"Bearer {OUR_API_KEY}"
-    }
-    response = requests.get(url, headers=headers, params=params)
+    def _make_request(self, endpoint: str, params: dict = None):
+        """
+        Makes a request to the Oura API.
 
-    average_hrv = response.json()["data"][0]["average_hrv"]
-    sleep_duration = response.json()["data"][0]["total_sleep_duration"]
-    print(average_hrv)
-    print((sleep_duration/60)/60)
+        Args:
+            endpoint (str): The Oura API endpoint (e.g., "/v2/usercollection/sleep").
+            params (dict, optional): Query parameters. Defaults to None.
 
-    if response.status_code == 200:
-        print("Getting here")
-        return response.json()  # Successfully fetched data
-    elif response.status_code == 401:
-        return {"error": "Unauthorized. Check your access token."}, 401
-    elif response.status_code == 403:
-        return {"error": "Forbidden. Insufficient permissions."}, 403
-    elif response.status_code == 404:
-        return {"error": "Not found. Invalid API endpoint."}, 404
-    else:
-        return {"error": "Failed to fetch data", "status_code": response.status_code}, response
+        Returns:
+            dict: API response or an error message.
+        """
+        url = f"{self.BASE_URL}{endpoint}"
+        headers = {"Authorization": f"Bearer {self.API_KEY}"}
 
+        response = requests.get(url, headers=headers, params=params)
+        return self._handle_response(response)
 
-def fetch_oura_personal_info():
-    """
-    Fetches personal information from the Oura API.
+    def _handle_response(self, response):
+        """
+        Handles API response errors and extracts data.
 
-    Args:
-        access_token (str): The OAuth Bearer token.
+        Args:
+            response (requests.Response): The API response object.
 
-    Returns:
-        dict: The API response in JSON format.
-    """
+        Returns:
+            dict: Parsed JSON response or an error message.
+        """
+        if response.status_code == 200:
+            return response.json()
+        error_messages = {
+            401: "Unauthorized. Check your access token.",
+            403: "Forbidden. Insufficient permissions.",
+            404: "Not found. Invalid API endpoint."
+        }
+        return {"error": error_messages.get(response.status_code, "API request failed"), "status_code": response.status_code}
 
+    def get_daily_readiness(self, start_date: str, end_date: str):
+        """
+        Fetches daily readiness scores.
 
+        Args:
+            start_date (str): The start date (YYYY-MM-DD).
+            end_date (str): The end date (YYYY-MM-DD).
 
-    return daily_readiness()
-    # return daily_sleep()
+        Returns:
+            dict: Readiness data.
+        """
+        params = {"start_date": start_date, "end_date": end_date, "next_token": None}
+        data = self._make_request("/v2/usercollection/daily_sleep", params)
+        
+        if "data" in data and data["data"]:
+            print("Readiness Score:", data["data"][0]["score"])
+        return data
 
+    def get_daily_sleep(self, start_date: str, end_date: str):
+        """
+        Fetches daily sleep data.
 
+        Args:
+            start_date (str): The start date (YYYY-MM-DD).
+            end_date (str): The end date (YYYY-MM-DD).
 
+        Returns:
+            dict: Sleep data.
+        """
+        params = {"start_date": start_date, "end_date": end_date, "next_token": None}
+        data = self._make_request("/v2/usercollection/sleep", params)
+        
+        if "data" in data and data["data"]:
+            average_hrv = data["data"][0]["average_hrv"]
+            sleep_duration = data["data"][0]["total_sleep_duration"] / 3600  # Convert seconds to hours
+            print("Average HRV:", average_hrv)
+            print("Sleep Duration (hrs):", sleep_duration)
+        return data
 
+    def get_personal_info(self):
+        """
+        Fetches personal information from the Oura API.
+
+        Returns:
+            dict: User personal data.
+        """
+        return self.get_daily_readiness("2025-01-30", "2025-01-31")
+        # return self.get_daily_sleep("2025-01-29", "2025-01-30")
