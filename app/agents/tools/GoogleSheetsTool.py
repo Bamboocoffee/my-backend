@@ -4,16 +4,52 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from langchain_core.callbacks import (AsyncCallbackManagerForToolRun,CallbackManagerForToolRun)
 from langchain_core.tools import BaseTool
+from openai import OpenAI
 
 # Helpers
 from typing import Optional, Type, List
 from pydantic import BaseModel, Field, root_validator
 from datetime import datetime
+import os
+import json
 
 class GoogleSheetsInput(BaseModel):
-    weight: float = Field(..., description="The user's logged weight in kg.")
+    """
+    Defines the expected input schema for logging user health data into Google Sheets.
+    
+    Attributes:
+        weight (float): The user's logged weight in kg.
+        steps (float): The user's logged steps for the day.
+        cardio (float): The user's logged calories burnt for the day.
+        protein (float): The user's logged protein intake for the day.
+        calories_consumed (float): The user's logged calorie intake for the day.
+    """
+    weight: Optional[float] = Field(0, description="The user's logged weight in kg.")
+    steps: Optional[float] = Field(0, description="The user's logged steps for the day.")
+    cardio: Optional[float] = Field(0, description="The user's logged calories burnt for the day.")
+    protein: Optional[float] = Field(0, description="The user's logged proteinn intake for the day.")
+    calories_consumed: Optional[float] = Field(0, description="The user's logged calorie intake for the day.")
     
 class CustomGoogleSheetsTool(BaseTool):
+    """
+    A custom LangChain tool for interacting with Google Sheets.
+
+    This tool enables the logging of structured data (such as health metrics)
+    into a Google Spreadsheet, leveraging the Google Sheets API.
+
+    Attributes:
+        name (str): Tool identifier name.
+        description (str): Description of the tool’s purpose.
+        args_schema (Type[BaseModel]): Defines the expected input format.
+        return_direct (bool): Whether to return values directly from the tool.
+        spreadsheet_id (str): Google Sheets spreadsheet ID.
+        sheet_range (str): The range to be accessed in the sheet.
+        service_account_file (str): Path to the service account JSON file.
+        scopes (List[str]): Google API scopes required for access.
+        credentials (Optional[Credentials]): OAuth credentials for API access.
+        service (Optional[build]): Authenticated Google Sheets API service object.
+    """
+
     name: str = "GoogleSheetsTool"
     description: str = "useful for when you want to input values into spreadsheets"
     args_schema: Type[BaseModel] = GoogleSheetsInput 
@@ -31,6 +67,7 @@ class CustomGoogleSheetsTool(BaseTool):
     # Tool Configuration {Do not need to appear in Base Class Definitions as not User-Supplied}
     credentials: Optional[Credentials] = None 
     service: Optional[build] = None
+    client: Optional[OpenAI] = None
 
     @root_validator(pre=True)
     def validate_required_fields(cls, values):
@@ -56,23 +93,8 @@ class CustomGoogleSheetsTool(BaseTool):
         # Authenticate with Google Sheets API
         self.credentials = Credentials.from_service_account_file(self.service_account_file, scopes=self.scopes)
         self.service = build('sheets', 'v4', credentials=self.credentials)
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    
-    def _get_sheet_data(self, sheet_range: str) -> List[List[str]]:
-        """
-        Fetches data from a Google Sheet within the specified range.
-
-        Args:
-            sheet_range (str): The range in A1 notation.
-
-        Returns:
-            List[List[str]]: The sheet's data.
-        """
-        result = self.service.spreadsheets().values().get(
-            spreadsheetId=self.spreadsheet_id,
-            range=sheet_range
-        ).execute()
-        return result.get('values', [])
     
     def _normalize_date(self, date_str: str)  -> str:
         """
@@ -87,36 +109,192 @@ class CustomGoogleSheetsTool(BaseTool):
         except ValueError:
             return None
     
-    def _run(self,
-             weight: float
-    ) -> str:
+    
+    def _find_section_start(self, data, row_index):
         """
-        ... 
+        Identifies the start of the section by locating the nearest header row before a given row.
+        :param data: The full sheet data.
+        :param row_index: The row index containing the date entry.
+        :return: The row index of the corresponding header row.
         """
-        
-        try:
-            # Step 1: Retrieve all data from the sheet
-            data = self._get_sheet_data(self.sheet_range)
-            # Step 2: Get today's date normalized to match the sheet's format
-            today = self._normalize_date(datetime.now().strftime('%a %d/%m/%y'))
-            # Step 3: Find the row with today's date in the 3rd column and update the 4th column
-            for i, row in enumerate(data):
-                if len(row) > 2 and row[2] == today:  # Check if today's date matches in the 3rd column
-                    update_range = f"{self.sheet_range.split('!')[0]}!D{i + 1}"  # D is the 4th column
-                    body = {"values": [[weight]]}
+        while row_index > 0:
+            row_index -= 1
+            if "DATE" in data[row_index]:  # Look for the repeating section header
+                return row_index
+        return None  # Return None if no header is found
 
-                    # Update the weight in the 4th column
-                    update_result = self.service.spreadsheets().values().update(
-                        spreadsheetId=self.spreadsheet_id,
-                        range=update_range,
-                        valueInputOption='RAW',
-                        body=body
-                    ).execute()
-                    return {
-                        "status": "success", 
-                        "message": f"Successfully updated the following cell: {update_result.get('updatedRange')}"
-                        }
-            return {"status": "error", "message": "No row with today's date found."}
+
+    def _find_best_matching_column(self, headers, query_metric):
+        """
+        Determines the best column for a given data type from a list of headers.
+
+        :param headers: The list of column headers in the current section.
+        :param data_type: The extracted data type from the command.
+        :return: The column index if found, else None.
+        """
+
+        prompt = f"""
+        You are an AI that maps user-provided metric names to spreadsheet column headers.
+
+        Given the following column headers from a Google Sheet:
+        {headers}
+
+        Identify the **most relevant column** for the metric: "{query_metric}"
+
+        Respond with a JSON object in this format:
+        {{"matched_column: "COLUMNN_NAME_HERE", "confirmed" : true # true if the match is highly confident, false otherwise}}
+
+        """
+
+        response = self.client.chat.completions.create(
+            model="gpt-4",  # Use GPT-4 for better reasoning
+            messages=[{"role": "system", "content": "You are an AI assistant."},
+                    {"role": "user", "content": prompt}],
+            temperature=0  # Ensure deterministic outputs
+        )
+
+        try:
+            llm_response = json.loads(response.choices[0].message.content)
+            matched_column = llm_response.get("matched_column", "").strip().lower().replace("\n", " ")
+            confirmed = llm_response.get("confirmed", False)
+
+            # If the LLM confirms the match, find the index
+            if confirmed:
+                headers_normalized = {header.lower().replace("\n", " ").strip(): i for i, header in enumerate(headers)}
+                return headers_normalized.get(matched_column)
+            return None  # No confirmed match found
+        except json.JSONDecodeError:
+            return None  # LLM response was invalid
+
+    
+    def _get_sheet_data(self, service, spreadsheet_id, range_name):
+        """Retrieve all data from the Google Sheet."""
+        try:
+            result = service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range=range_name
+            ).execute()
+            return result.get("values", [])
         except Exception as e:
-                return {"status": "error", "message": str(e)}
+            return None, {"status": "error", "message": str(e)}
+
+
+    def _find_date_row(self, data):
+        """Find the row containing today's date."""
+        today = self._normalize_date(datetime.now().strftime("%a %d/%m/%y"))
+        return next((i for i, row in enumerate(data) if len(row) > 2 and row[2] == today), None)
+
+
+    def _get_update_values(self, headers, parameters):
+        """Match each parameter to its corresponding column index."""
+        update_values = {}
+        for param_name, param_value in parameters.items():
+            if param_value is not None:
+                col_index = self._find_best_matching_column(headers, param_name)
+                if col_index is not None:
+                    update_values[col_index] = param_value
+        return update_values
+
+
+    def _perform_batch_update(self, service, spreadsheet_id, range_name, update_values, date_row):
+        """Perform batch updates for all matched parameters in Google Sheets."""
+        try:
+            update_requests = [
+                {
+                    "range": f"{range_name.split('!')[0]}!{chr(65 + col_index)}{date_row + 1}",
+                    "values": [[value]]
+                }
+                for col_index, value in update_values.items() if value > 0
+            ]
+
+            if not update_requests:
+                return {"status": "error", "message": "No valid columns found for the provided parameters."}
+
+            body = {"valueInputOption": "RAW", "data": update_requests}
+            update_result = service.spreadsheets().values().batchUpdate(
+                spreadsheetId=spreadsheet_id, body=body
+            ).execute()
+            return "Success"
+        except Exception as e:
+            raise Exception("Error: " + e)
+    
+    def _run(self,
+            weight: Optional[float] = 0, steps: Optional[float] = 0, cardio:  Optional[float] = 0, 
+            calories_consumed:  Optional[float] = 0, protein:  Optional[float] = 0, 
+            *kwargs) -> str:
+        """
+        Logs user health data into a Google Sheet by finding today's date and updating the corresponding row.
+
+        Args:
+            weight (float): User's weight in kg.
+            steps (float): Number of steps walked.
+            cardio (float): Calories burnt.
+            protein (float): Protein intake in grams.
+            calories_consumed (float): Total calories consumed.
+            **kwargs: Additional parameters (not used in this function).
+
+        Returns:
+            str: Success message with updated cell reference, or an error message if unsuccessful. 
+        """
+        try:
+        # Step 1: Retrieve sheet data
+            data = self._get_sheet_data(self.service, self.spreadsheet_id, self.sheet_range)
+            if not data:
+                return {"status": "error", "message": "No data found in the sheet."}
+
+            # Step 2: Identify the correct section by locating today's date
+            date_row = self._find_date_row(data)
+            if date_row is None:
+                return {"status": "error", "message": "Could not locate today's date in the sheet."}
+
+            # Step 3: Extract headers from the detected section
+            section_start = self._find_section_start(data, date_row)
+            if section_start is None:
+                return {"status": "error", "message": "Could not identify the header row for this section."}
+
+            headers = data[section_start]
+
+            # Step 4: Construct update values based on provided parameters
+            parameters = {
+                "weight": weight,
+                "steps": steps,
+                "cardio": cardio,
+                "calories_consumed": calories_consumed,
+                "protein": protein,
+            }
+            update_values = self._get_update_values(headers, parameters)
+
+            if not update_values:
+                return {"status": "error", "message": "No valid columns found for the provided parameters."}
+
+            # Step 5: Perform batch updates
+            updated_cells = self._perform_batch_update(self.service, self.spreadsheet_id, self.sheet_range, update_values, date_row)
+            return f"Nice work Stephen, I've updated the following required cells. Anything else I can help you with?"
+        except json.JSONDecodeError:
+          return {"status": "error", "message": "Invalid JSON response from LLM."}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        
+        # try:
+        #     # Step 1: Retrieve all data from the sheet
+        #     data = self._get_sheet_data(self.sheet_range)
+        #     # Step 2: Get today's date normalized to match the sheet's format
+        #     today = self._normalize_date(datetime.now().strftime('%a %d/%m/%y'))
+        #     # Step 3: Find the row with today's date in the 3rd column and update the 4th column
+        #     for i, row in enumerate(data):
+        #         if len(row) > 2 and row[2] == today:  # Check if today's date matches in the 3rd column
+        #             update_range = f"{self.sheet_range.split('!')[0]}!D{i + 1}"  # D is the 4th column
+        #             body = {"values": [[weight]]}
+
+        #             # Update the weight in the 4th column
+        #             update_result = self.service.spreadsheets().values().update(
+        #                 spreadsheetId=self.spreadsheet_id,
+        #                 range=update_range,
+        #                 valueInputOption='RAW',
+        #                 body=body
+        #             ).execute()
+        #             return f"Nice work! I've successfull updated that for you in cell: {update_result.get('updatedRange')}"
+        #     return "No row with today's date found."
+        # except Exception as e:
+        #         return str(e)
     

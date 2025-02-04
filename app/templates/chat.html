@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}">
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">You're chatting with "Stephen"</div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="input-container">
+        <input type="text" id="messageInput" placeholder="Type your message..." class="message-input">
+        <button onclick="sendMessage()" class="send-button">Chat</button>
+    </div>
+</div>
+
+<script>
+    async function sendMessage() {
+        let inputField = document.getElementById("messageInput");
+        let message = inputField.value.trim();
+        if (message === "") return;
+
+        displayMessage(message, true); // Show user message
+        inputField.value = ""; // Clear input field
+
+        try {
+            let response = await fetch("/send_message", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: message })
+            });
+
+            let data = await response.json();
+            if (data.response) {
+                displayMessage(data.response, false); // Show AI response
+            } else if (data.error) {
+                displayMessage("Error: " + data.error, false);
+            }
+        } catch (error) {
+            displayMessage("Something went wrong: " + error.message, false);
+        }
+    }
+
+    function displayMessage(content, isUser) {
+        let chatContainer = document.getElementById("chatMessages");
+        let messageDiv = document.createElement("div");
+        messageDiv.classList.add("message-container", isUser ? "user-message-container" : "");
+        messageDiv.innerHTML = `<div class="message ${isUser ? "user-message" : "assistant-message"}">${content}</div>`;
+        chatContainer.appendChild(messageDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll
+    }
+</script>
+
+</body>
+</html>

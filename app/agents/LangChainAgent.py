@@ -9,6 +9,8 @@ from app.agents.tools.GoogleSheetsTool import CustomGoogleSheetsTool
 
 # Tools
 from uuid import uuid4
+from typing import Optional
+
 
 class LangChainAgent():
     """
@@ -26,9 +28,9 @@ class LangChainAgent():
         >>>> config = {"configurable": {"thread_id": agent_object.get_thread_id}}
     """
 
-    _thread_id = None
+    # _thread_id = None
 
-    def __init__(self, model= ChatOpenAI(), tools: list = ["search", "spreadsheet"], memory: bool=True):
+    def __init__(self, model= ChatOpenAI(), tools: list = ["search", "spreadsheet"], memory: bool=True, thread_id: Optional[str] = None):
         """
         Initializes the GeneralAgent with a specified model, tools, and memory settings.
 
@@ -39,7 +41,9 @@ class LangChainAgent():
         """
         self.model = model
         self.tools = self._get_tools(tools)
-        self.memory = self._overlord(shouldPossessMemory=memory)
+        self.memory = MemorySaver() if memory else None
+        self._thread_id = thread_id if thread_id else (["1234"] if memory else None)
+        # self.memory = self._overlord(shouldPossessMemory=memory)
 
 
     def _get_tools(self, tools: list) -> list:
@@ -76,26 +80,35 @@ class LangChainAgent():
 
         :params shouldPossessMemory - should the model remember
         """
-
-        if shouldPossessMemory:
-            self._set_thread_id() # sets a unique thread ID
-            return MemorySaver() # return the memory object
-        else:
-            return None
+        return MemorySaver() if shouldPossessMemory else None
         
-    def _set_thread_id(self):
+    
+    def get_thread_id(self) -> Optional[str]:
         """
-        Private class that sets the thread ID to a unique uuid4 number
-        """
-        self._thread_id = str(uuid4())
-
-    @property
-    def get_thread_id(self) -> uuid4:
-        """
-        Class that allows programs to access the thread id
+        Method that allows programs to access the thread id
         """
         return self._thread_id
 
+    def load_memory(self):
+        """
+        Loads stored messages from memory.
+        Returns:
+            List[HumanMessage | AIMessage | ToolMessage]: Retrieved messages.
+        """
+        try:
+            if self.memory and self._thread_id:
+                stored_messages = self.memory.get(self._thread_id)
+                # ✅ Fix: Ensure messages are properly loaded
+                if stored_messages and isinstance(stored_messages, str):  
+                    try:
+                        stored_messages = eval(stored_messages)  # Convert from string to list
+                    except Exception as e:
+                        print(f"Error parsing memory for {self._thread_id}: {e}")
+                        stored_messages = []
+                return stored_messages if isinstance(stored_messages, list) else []
+        except Exception as e:
+            print(e)
+        return []
     
     def create_agent(self):
         """

@@ -4,7 +4,7 @@ from openai import OpenAI
 import os
 from app.services.google_sheets_service import google_sheets_service
 from app.services.authenticate_service import authentication
-from app.services.test_service import test_agent_function
+from app.services.agent_service import agent_service
 
 # Define the Blueprint
 main = Blueprint('main', __name__)
@@ -16,6 +16,10 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 @main.route('/')
 def home():
     return render_template('black_hole.html')
+
+@main.route('/chat/')
+def chat():
+    return render_template('chat.html')
 
 @main.route('/completion/', methods=['GET', 'POST'])
 def completion_call():
@@ -35,21 +39,24 @@ def completion_call():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-@main.route('/health/google_sheets_service/', methods=['GET', 'POST'])
-@authentication
-def google_sheets_service_call():
+@main.route('/agent/basic_service/', methods=['GET', 'POST'])
+# @authentication
+def call_agent_service():
+    data = request.get_json()
+    print(data)
     try:
-        data = request.get_json()
-        result = google_sheets_service(weight=data["message"])
-        return jsonify({"status": "success", "response": result}), 200
+        result = agent_service(data["message"], data["user_thread_id"])
+        print(result)
+        return jsonify({"status": "success", "response": result["message"], "thread_id": result["thread_id"]}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
-    
 
 @main.route('/test/', methods=['GET', 'POST'])
 def test_call():
     try:
-        result = test_agent_function()
-        return jsonify({"status": "success", "response": result}), 200
+        result = google_sheets_service(weight=46, steps=4680, cardio=555, protein=178)
+        print(result)
+        return jsonify({"status": "success", "response": [], "thread_id": ""}), 200
     except Exception as e:
+        print(e)
         return jsonify({"error": str(e)}), 400
