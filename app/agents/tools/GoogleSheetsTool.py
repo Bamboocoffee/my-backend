@@ -274,27 +274,4 @@ class CustomGoogleSheetsTool(BaseTool):
           return {"status": "error", "message": "Invalid JSON response from LLM."}
         except Exception as e:
             return {"status": "error", "message": str(e)}
-        
-        # try:
-        #     # Step 1: Retrieve all data from the sheet
-        #     data = self._get_sheet_data(self.sheet_range)
-        #     # Step 2: Get today's date normalized to match the sheet's format
-        #     today = self._normalize_date(datetime.now().strftime('%a %d/%m/%y'))
-        #     # Step 3: Find the row with today's date in the 3rd column and update the 4th column
-        #     for i, row in enumerate(data):
-        #         if len(row) > 2 and row[2] == today:  # Check if today's date matches in the 3rd column
-        #             update_range = f"{self.sheet_range.split('!')[0]}!D{i + 1}"  # D is the 4th column
-        #             body = {"values": [[weight]]}
-
-        #             # Update the weight in the 4th column
-        #             update_result = self.service.spreadsheets().values().update(
-        #                 spreadsheetId=self.spreadsheet_id,
-        #                 range=update_range,
-        #                 valueInputOption='RAW',
-        #                 body=body
-        #             ).execute()
-        #             return f"Nice work! I've successfull updated that for you in cell: {update_result.get('updatedRange')}"
-        #     return "No row with today's date found."
-        # except Exception as e:
-        #         return str(e)
     

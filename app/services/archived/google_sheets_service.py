@@ -93,6 +93,7 @@ def find_best_matching_column(headers, query_metric):
     except json.JSONDecodeError:
         return None  # LLM response was invalid
 
+
     
 def get_sheet_data(service, spreadsheet_id, range_name):
     """Retrieve all data from the Google Sheet."""

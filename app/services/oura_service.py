@@ -79,13 +79,17 @@ class OuraServiceAPI:
         """
         params = {"start_date": start_date, "end_date": end_date, "next_token": None}
         data = self._make_request("/v2/usercollection/sleep", params)
-        
-        if "data" in data and data["data"]:
-            average_hrv = data["data"][0]["average_hrv"]
-            sleep_duration = data["data"][0]["total_sleep_duration"] / 3600  # Convert seconds to hours
-            print("Average HRV:", average_hrv)
-            print("Sleep Duration (hrs):", sleep_duration)
-        return data
+        largest_hrv = 0
+        longest_sleep = 0
+
+        try:
+            if "data" in data and data["data"]:
+                for i, entry in enumerate(data["data"]):
+                    largest_hrv = max(data["data"][i]["average_hrv"] or 0, largest_hrv) 
+                    longest_sleep = max(data["data"][i]["total_sleep_duration"] / 3600 or 0, longest_sleep)
+            return {"total_hrv": largest_hrv, "total_sleep_duration": longest_sleep}
+        except Exception as e:
+            raise Exception(e)
 
     def get_personal_info(self):
         """
