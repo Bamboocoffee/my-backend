@@ -18,6 +18,10 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 def home():
     return render_template('welcome.html')
 
+@main.errorhandler(404)
+def page_not_found(e):
+    return render_template("welcome.html"), 404
+
 @main.route('/agent/basic_service/', methods=['GET', 'POST'])
 @authentication
 def call_agent_service():
