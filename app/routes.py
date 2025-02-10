@@ -16,7 +16,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @main.route('/')
 def home():
-    return render_template('black_hole.html')
+    return render_template('welcome.html')
 
 @main.route('/chat/')
 def chat():
