@@ -24,6 +24,6 @@ def create_app():
 
     @app.errorhandler(404)
     def page_not_found(e):
-        return redirect(url_for("main/home"))
+        return redirect(url_for("main.home"))
 
     return app
