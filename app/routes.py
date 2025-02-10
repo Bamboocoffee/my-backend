@@ -18,30 +18,26 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 def home():
     return render_template('welcome.html')
 
-@main.route('/chat/')
-def chat():
-    return render_template('chat.html')
+# @main.route('/completion/', methods=['GET', 'POST'])
+# def completion_call():
+#     def parse_email_with_gpt(input_text="weight 46, sleep quality 88"):
+#         response = client.chat.completions.create(
+#             model="gpt-4",
+#             messages=[
+#                 {"role": "system", "content": "You are a helpful assistant that extracts structured data from text emails."},
+#                 {"role": "user", "content": f"Extract weight, sleep duration, sleep quality, and sleep HRV from this email:\n{input_text}"}
+#             ]
+#         )
+#         return response.choices[0].message.content
 
-@main.route('/completion/', methods=['GET', 'POST'])
-def completion_call():
-    def parse_email_with_gpt(input_text="weight 46, sleep quality 88"):
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that extracts structured data from text emails."},
-                {"role": "user", "content": f"Extract weight, sleep duration, sleep quality, and sleep HRV from this email:\n{input_text}"}
-            ]
-        )
-        return response.choices[0].message.content
-
-    try:
-        data = request.get_json()
-        return {"response": parse_email_with_gpt(data["message"])}
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+#     try:
+#         data = request.get_json()
+#         return {"response": parse_email_with_gpt(data["message"])}
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 400
 
 @main.route('/agent/basic_service/', methods=['GET', 'POST'])
-# @authentication
+@authentication
 def call_agent_service():
     data = request.get_json()
     print(data)
@@ -53,6 +49,7 @@ def call_agent_service():
         return jsonify({"error": str(e)}), 400
 
 @main.route('/test/', methods=['GET', 'POST'])
+@authentication
 def test_call():
     try:
         result = google_sheets_service(weight=46, steps=4680, cardio=555, protein=178)
@@ -63,6 +60,7 @@ def test_call():
         return jsonify({"error": str(e)}), 400
     
 @main.route('/oura/', methods=['GET', 'POST'])
+@authentication
 def oura_service():
     try:
         result = OuraServiceAPI()
