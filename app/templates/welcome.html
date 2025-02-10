@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stephen's API</title>
+    <style>
+        body {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .json-container {
+            background-color: #252526;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+            max-width: 600px;
+            font-size: 1.125em;
+            word-wrap: break-word;
+        }
+        .key {
+            color: #9cdcfe;
+        }
+        .string {
+            color: #ce9178;
+        }
+        .hover-info {
+            display: none;
+            color: #dcdcaa;
+        }
+        .json-container:hover .hover-info {
+            display: inline;
+        }
+        @media (max-width: 768px) {
+            .json-container {
+                max-width: 90%;
+                font-size: 1em;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="json-container">
+        {<br>
+        &nbsp;&nbsp;"name": <span class="string">"Stephen Keenan"</span>,<br>
+        &nbsp;&nbsp;"role": <span class="string">"Product Manager & (Occasional) Software Engineer"</span>,<br>
+        &nbsp;&nbsp;"message": <span class="string">"I love building things. Hit me up below if you do to."</span>,<br>
+        &nbsp;&nbsp;"contact": {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;"email": <span class="string">"stephen@stephenkeenan.com"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;"github": <span class="string">"github.com/johndoe"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;"linkedin": <span class="string">"https://www.linkedin.com/in/stephen-keenan/"</span><br>
+        &nbsp;&nbsp;}<br>
+        }<br>
+        <span class="hover-info">// Hover to reveal hidden details.</span>
+    </div>
+</body>
+</html>
