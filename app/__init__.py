@@ -22,7 +22,7 @@ def create_app():
     # Register Blueprints
     app.register_blueprint(main)
 
-    @main.errorhandler(404)
+    @app.errorhandler(404)
     def page_not_found(e):
         return redirect(url_for("main/home"))
 
