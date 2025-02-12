@@ -19,7 +19,8 @@ from typing import Dict, List, Optional, Union
 # - Build basic front-end to interact with tool ✅
 # - Edit tool to update sheet with all variables ✅
 # - Deploy backend to VPS ✅
-# - Connect to Oura account and save to google sheets
+# - Secure Open Endpoint ✅
+# - Connect to Oura account and save to google sheets ✅
 # - Investigat why the memory is not working
 # - Build agent to tell me what to do every morning
 

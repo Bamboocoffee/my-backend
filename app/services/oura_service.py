@@ -48,7 +48,7 @@ class OuraServiceAPI:
         }
         return {"error": error_messages.get(response.status_code, "API request failed"), "status_code": response.status_code}
 
-    def get_daily_readiness(self, start_date: str, end_date: str):
+    def get_daily_sleep(self, start_date: str, end_date: str) -> dict:
         """
         Fetches daily readiness scores.
 
@@ -61,12 +61,12 @@ class OuraServiceAPI:
         """
         params = {"start_date": start_date, "end_date": end_date, "next_token": None}
         data = self._make_request("/v2/usercollection/daily_sleep", params)
-        
+        sleep_score = 0
         if "data" in data and data["data"]:
-            print("Readiness Score:", data["data"][0]["score"])
-        return data
+            sleep_score = data["data"][0]["score"]
+        return {"sleep_score": sleep_score}
 
-    def get_daily_sleep(self, start_date: str, end_date: str):
+    def get_sleep_details(self, start_date: str, end_date: str) -> dict:
         """
         Fetches daily sleep data.
 
@@ -81,13 +81,13 @@ class OuraServiceAPI:
         data = self._make_request("/v2/usercollection/sleep", params)
         largest_hrv = 0
         longest_sleep = 0
-
+        # print(data)
         try:
             if "data" in data and data["data"]:
                 for i, entry in enumerate(data["data"]):
                     largest_hrv = max(data["data"][i]["average_hrv"] or 0, largest_hrv) 
                     longest_sleep = max(data["data"][i]["total_sleep_duration"] / 3600 or 0, longest_sleep)
-            return {"total_hrv": largest_hrv, "total_sleep_duration": longest_sleep}
+            return {"total_hrv": largest_hrv, "total_sleep_duration": f"{int(longest_sleep)}:{round((longest_sleep % 1) * 60):02d}"}
         except Exception as e:
             raise Exception(e)
 
@@ -99,4 +99,3 @@ class OuraServiceAPI:
             dict: User personal data.
         """
         return self.get_daily_readiness("2025-01-30", "2025-01-31")
-        # return self.get_daily_sleep("2025-01-29", "2025-01-30")

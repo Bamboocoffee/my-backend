@@ -23,12 +23,18 @@ class GoogleSheetsInput(BaseModel):
         cardio (float): The user's logged calories burnt for the day.
         protein (float): The user's logged protein intake for the day.
         calories_consumed (float): The user's logged calorie intake for the day.
+        sleep_duration (str): The total sleep duration for the user
+        sleep_score (float): The user's logged sleep quality.
+        HRV (float): The user's logged HRV.
     """
     weight: Optional[float] = Field(0, description="The user's logged weight in kg.")
     steps: Optional[float] = Field(0, description="The user's logged steps for the day.")
     cardio: Optional[float] = Field(0, description="The user's logged calories burnt for the day.")
     protein: Optional[float] = Field(0, description="The user's logged proteinn intake for the day.")
     calories_consumed: Optional[float] = Field(0, description="The user's logged calorie intake for the day.")
+    sleep_duration: Optional[str] = Field("", description="The total sleep duration for the user.")
+    sleep_score: Optional[float] = Field(0, description="The user's logged sleep quality.")
+    HRV: Optional[float] = Field(0, description="The user's logged HRV.")
     
 class CustomGoogleSheetsTool(BaseTool):
     """
@@ -176,7 +182,7 @@ class CustomGoogleSheetsTool(BaseTool):
             ).execute()
             return result.get("values", [])
         except Exception as e:
-            return None, {"status": "error", "message": str(e)}
+            raise Exception("Error getting all the data from the sheet: " + e)
 
 
     def _find_date_row(self, data):
@@ -185,42 +191,52 @@ class CustomGoogleSheetsTool(BaseTool):
         return next((i for i, row in enumerate(data) if len(row) > 2 and row[2] == today), None)
 
 
-    def _get_update_values(self, headers, parameters):
+    def _get_update_values(self, headers, parameters) -> dict:
         """Match each parameter to its corresponding column index."""
         update_values = {}
-        for param_name, param_value in parameters.items():
-            if param_value is not None:
-                col_index = self._find_best_matching_column(headers, param_name)
-                if col_index is not None:
-                    update_values[col_index] = param_value
-        return update_values
+        try:
+            for param_name, param_value in parameters.items():
+                if param_value is not None and param_value != 0 and param_value != "0" and param_value != "":
+                    param_value = str(param_value)  # Convert any value to string before processing
+                    col_index = self._find_best_matching_column(headers, param_name)
+                    if col_index is not None:
+                        update_values[col_index] = param_value
+            return update_values
+        except Exception as e:
+            raise Exception("Error matching the parameter to it's colum index: " + e)
+    
 
-
-    def _perform_batch_update(self, service, spreadsheet_id, range_name, update_values, date_row):
+    def _perform_batch_update(self, service, spreadsheet_id, range_name, update_values, date_row) -> str:
         """Perform batch updates for all matched parameters in Google Sheets."""
         try:
-            update_requests = [
-                {
-                    "range": f"{range_name.split('!')[0]}!{chr(65 + col_index)}{date_row + 1}",
-                    "values": [[value]]
-                }
-                for col_index, value in update_values.items() if value > 0
-            ]
+            update_requests = []
+            for col_index, value in update_values.items():
+                try:
+                    num_value = float(value)  # Convert to float if possible
+                    if num_value > 0:
+                        value = num_value  # Keep as number if valid
+                except ValueError:
+                    pass  # Leave it as string if conversion fails
 
+                update_requests.append({
+                    "range": f"{range_name.split('!')[0]}!{chr(65 + col_index)}{date_row + 1}",
+                    "values": [[f"'{value}"]]  # Ensure values are treated as text
+                })
             if not update_requests:
                 return {"status": "error", "message": "No valid columns found for the provided parameters."}
 
-            body = {"valueInputOption": "RAW", "data": update_requests}
+            body = {"valueInputOption": "USER_ENTERED", "data": update_requests}
             update_result = service.spreadsheets().values().batchUpdate(
                 spreadsheetId=spreadsheet_id, body=body
             ).execute()
             return "Success"
         except Exception as e:
-            raise Exception("Error: " + e)
+            raise Exception("Error performing the batch updated: " + str(e))
     
     def _run(self,
             weight: Optional[float] = 0, steps: Optional[float] = 0, cardio:  Optional[float] = 0, 
-            calories_consumed:  Optional[float] = 0, protein:  Optional[float] = 0, 
+            calories_consumed:  Optional[float] = 0, protein:  Optional[float] = 0, sleep_duration:  Optional[str] = 0, 
+            sleep_score:  Optional[float] = 0, HRV:  Optional[float] = 0,
             *kwargs) -> str:
         """
         Logs user health data into a Google Sheet by finding today's date and updating the corresponding row.
@@ -231,11 +247,15 @@ class CustomGoogleSheetsTool(BaseTool):
             cardio (float): Calories burnt.
             protein (float): Protein intake in grams.
             calories_consumed (float): Total calories consumed.
+            sleep_duration (str): the total sleep duration 
+            sleep_score (float): the total sleep quality
+            HRV (float): The HRV logged by the user
             **kwargs: Additional parameters (not used in this function).
 
         Returns:
             str: Success message with updated cell reference, or an error message if unsuccessful. 
         """
+
         try:
         # Step 1: Retrieve sheet data
             data = self._get_sheet_data(self.service, self.spreadsheet_id, self.sheet_range)
@@ -256,14 +276,19 @@ class CustomGoogleSheetsTool(BaseTool):
 
             # Step 4: Construct update values based on provided parameters
             parameters = {
-                "weight": weight,
-                "steps": steps,
-                "cardio": cardio,
-                "calories_consumed": calories_consumed,
-                "protein": protein,
+                    "weight": weight,
+                    "steps": steps,
+                    "cardio": cardio,
+                    "calories_consumed": calories_consumed,
+                    "protein": protein,
+                    "sleep_duration": sleep_duration, 
+                    "sleep_score": sleep_score,
+                    "HRV": HRV
             }
-            update_values = self._get_update_values(headers, parameters)
 
+            update_values = self._get_update_values(headers, parameters)
+            print("These are the updated values")
+            print(update_values)
             if not update_values:
                 return {"status": "error", "message": "No valid columns found for the provided parameters."}
 
