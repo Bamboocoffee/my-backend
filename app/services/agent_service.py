@@ -14,14 +14,7 @@ from typing import Dict, List, Optional, Union
 
 
 # TODO
-# - Create bespoke tool for Google Sheets ✅
-# - Edit tool to accept all sorts of inputs from text ✅
-# - Build basic front-end to interact with tool ✅
-# - Edit tool to update sheet with all variables ✅
-# - Deploy backend to VPS ✅
-# - Secure Open Endpoint ✅
-# - Connect to Oura account and save to google sheets ✅
-# - Investigat why the memory is not working
+# - Investigate why the memory is not working
 # - Build agent to tell me what to do every morning
 
   # Process streamed agent responses
